@@ -4,9 +4,10 @@
  * 期待値を求める。
  */
 
+#include <algorithm>
 #include <iomanip>
-#include <map>
 #include <memory>
+#include <unordered_map>
 #include <assert.h>
 #include <math.h>
 #include <memory.h>
@@ -82,15 +83,15 @@ void CardHolder::Draw(CardNumber cardsPerDraw) {
 
     // すでに引いた種類のカードは無視する
     for(CardNumber i=0; i < cardsPerDraw; ++i) {
-        auto num = cardArray[i];
+        auto num = cardArray.at(i);
         if (num >= kindOfCards_) {
             std::cerr << "Card number out of range! " << num << std::endl;
             ::abort();
         }
 
-        if (!hasCardArray_[num]) {
+        if (!hasCardArray_.at(num)) {
             ++numberOfCollectedCards_;
-            hasCardArray_[num] = true;
+            hasCardArray_.at(num) = true;
         }
     }
 
@@ -109,7 +110,7 @@ DrawCount CardHolder::Complete(CardNumber cardsPerDraw) {
 
 void CardHolder::fetchCardSet(CardNumber cardsPerDraw, CardNumberArray& cardArray) {
     // どの種類のカードを引いたか
-    std::map<CardNumber, bool> hasDrawnMap;
+    std::unordered_map<CardNumber, bool> hasDrawnMap;
     // 両端を含む一様乱数
     std::uniform_int_distribution<CardNumber> randomCard(0, kindOfCards_ - 1);
 
@@ -189,9 +190,9 @@ namespace {
         <boost::multiprecision::cpp_dec_float<g_digitsOfFloat>>;
     // Floatを十分格納できる桁数にしておく
     using MultiPrecisionInt = boost::multiprecision::checked_int512_t;
-    using CPCaluculatorFloat = TypedCardProbabilityCaluculator<float>;
-    using CPCaluculatorDouble = TypedCardProbabilityCaluculator<double>;
-    using CPCaluculatorMultiPrecision = TypedCardProbabilityCaluculator<MultiPrecisionFloat>;
+    using CPCalculatorFloat = TypedCardProbabilityCalculator<float>;
+    using CPCalculatorDouble = TypedCardProbabilityCalculator<double>;
+    using CPCalculatorMultiPrecision = TypedCardProbabilityCalculator<MultiPrecisionFloat>;
 }
 
 // Factory
@@ -199,18 +200,18 @@ CardProbabilityCalculator* CardProbabilityCalculator::CreateInstance(
     CardNumber kindOfCards, CardNumber cardsPerDraw, Precision precision) {
     switch(precision) {
     case Precision::PRECISION_BUILTIN_FLOAT:
-        return new CPCaluculatorFloat(kindOfCards, cardsPerDraw);
+        return new CPCalculatorFloat(kindOfCards, cardsPerDraw);
     case Precision::PRECISION_BUILTIN_DOUBLE:
-        return new CPCaluculatorDouble(kindOfCards, cardsPerDraw);
+        return new CPCalculatorDouble(kindOfCards, cardsPerDraw);
     case Precision::PRECISION_VARIABLE_PRECISION_FLOAT:
-        return new CPCaluculatorMultiPrecision(kindOfCards, cardsPerDraw);
+        return new CPCalculatorMultiPrecision(kindOfCards, cardsPerDraw);
     default:
         std::cerr << "Unknown precision enum" << static_cast<int>(precision) << std::endl;
         ::abort();
         break;
     }
 
-    return 0;
+    return nullptr;
 }
 
 CardProbabilityCalculator::CardProbabilityCalculator(CardNumber kindOfCards, CardNumber cardsPerDraw)
@@ -248,23 +249,23 @@ ReportedCount CardProbabilityCalculator::Calculate(std::ostream* os) {
 }
 
 /* 型ごとに異なる定義 */
-template <typename T> const char* TypedCardProbabilityCaluculator<T>::name_ = "unknown type";
-template <> const char* TypedCardProbabilityCaluculator<float>::name_ = "builtin float";
-template <> const char* TypedCardProbabilityCaluculator<double>::name_ = "builtin double";
-template <> const char* TypedCardProbabilityCaluculator<MultiPrecisionFloat>::name_ = "variable precision float";
+template <typename T> const char* TypedCardProbabilityCalculator<T>::name_ = "unknown type";
+template <> const char* TypedCardProbabilityCalculator<float>::name_ = "builtin float";
+template <> const char* TypedCardProbabilityCalculator<double>::name_ = "builtin double";
+template <> const char* TypedCardProbabilityCalculator<MultiPrecisionFloat>::name_ = "variable precision float";
 
 template <typename FloatType>
-ReportedCount TypedCardProbabilityCaluculator<FloatType>::calculate(void) {
-    return countFloatArray_[0];
+ReportedCount TypedCardProbabilityCalculator<FloatType>::calculate(void) {
+    return countFloatArray_.at(0);
 }
 
 template <>
-ReportedCount TypedCardProbabilityCaluculator<MultiPrecisionFloat>::calculate(void) {
-    return countFloatArray_[0].convert_to<ReportedCount>();
+ReportedCount TypedCardProbabilityCalculator<MultiPrecisionFloat>::calculate(void) {
+    return countFloatArray_.at(0).convert_to<ReportedCount>();
 }
 
 template <typename FloatType>
-TypedCardProbabilityCaluculator<FloatType>::TypedCardProbabilityCaluculator(
+TypedCardProbabilityCalculator<FloatType>::TypedCardProbabilityCalculator(
     CardNumber kindOfCards, CardNumber cardsPerDraw) :
     CardProbabilityCalculator(kindOfCards, cardsPerDraw) {
     countFloatArray_.assign(countArraySize_, 0);
@@ -273,105 +274,103 @@ TypedCardProbabilityCaluculator<FloatType>::TypedCardProbabilityCaluculator(
 }
 
 template <typename FloatType>
-TypedCardProbabilityCaluculator<FloatType>::~TypedCardProbabilityCaluculator(void) {
+TypedCardProbabilityCalculator<FloatType>::~TypedCardProbabilityCalculator(void) {
     return;
 }
 
 template <typename FloatType>
-const char* TypedCardProbabilityCaluculator<FloatType>::GetName(void) const {
+const char* TypedCardProbabilityCalculator<FloatType>::GetName(void) const {
     return name_;
 }
 
 template <typename FloatType>
-void TypedCardProbabilityCaluculator<FloatType>::setProbabilityArray(CardNumber numberOfWantedCards) {
+void TypedCardProbabilityCalculator<FloatType>::setProbabilityArray(CardNumber numberOfWantedCards) {
     // 残り種類が少ないときは組み合わせが0になる
     for(CardNumber i=0; i<probabilityArraySize_; ++i) {
-        probabilityFloatArray_[i] = 0;
-        combinationFloatArray_[i] = 0;
+        probabilityFloatArray_.at(i) = 0;
+        combinationFloatArray_.at(i) = 0;
     }
 
     // 残り種類が多すぎたら、1セットの種類より多くは集まらない
-    const CardNumber numberOfCards = (numberOfWantedCards < cardsPerDraw_) ?
-        numberOfWantedCards : cardsPerDraw_;
+    const CardNumber numberOfCards = std::min(numberOfWantedCards, cardsPerDraw_);
     FloatType totalCombinationSize = 0;
 
     // 何種類増えるかの組み合わせの数を求める
-    FloatType combinationSize1 = 0;
-    FloatType combinationSize2 = 0;
-    for(CardNumber i=0; i<=numberOfCards; ++i) {
-        combinationSize1 = 0;
-        combinationSize2 = 0;
+    CombinationSizeSet comboSizeSet1;
+    CombinationSizeSet comboSizeSet2;
+    getCombinationSizeSet(numberOfWantedCards, numberOfCards, comboSizeSet1);
+    getCombinationSizeSet(kindOfCards_ - numberOfWantedCards, cardsPerDraw_, comboSizeSet2);
 
-        combinationSize1 = getCombinationSize(numberOfWantedCards, i);
-        combinationSize2 = getCombinationSize(kindOfCards_ - numberOfWantedCards, cardsPerDraw_ - i);
-        combinationFloatArray_[i] = combinationSize1 * combinationSize2;
-        totalCombinationSize += combinationFloatArray_[i];
+    for(CardNumber i=0; i<=numberOfCards; ++i) {
+        combinationFloatArray_.at(i) = comboSizeSet1.at(i) * comboSizeSet2.at(cardsPerDraw_ - i);
+        totalCombinationSize += combinationFloatArray_.at(i);
     }
 
     // 何種類増えるかの確率分布を求める
     for(CardNumber i=0; i<=numberOfCards; ++i) {
-        probabilityFloatArray_[i] = combinationFloatArray_[i] / totalCombinationSize;
+        probabilityFloatArray_.at(i) = combinationFloatArray_.at(i) / totalCombinationSize;
     }
 
     return;
 }
 
 template <typename FloatType>
-void TypedCardProbabilityCaluculator<FloatType>::updateCount(CardNumber numberOfWantedCards) {
+void TypedCardProbabilityCalculator<FloatType>::updateCount(CardNumber numberOfWantedCards) {
     // 種類が増える確率 = 1.0 - 1種類も増えない確率:probabilityArray_[0]
     // 種類が増えるまでの回数の期待値 = 確率の逆数
-    const FloatType probabilityToForward = 1.0 - probabilityFloatArray_[0];
+    const FloatType probabilityToForward = 1.0 - probabilityFloatArray_.at(0);
     FloatType totalExpectedCount = 1.0 / probabilityToForward;
 
     // 回数の期待値を、前回の計算から1種類分ずらす
     for(CardNumber i=cardsPerDraw_; i>=1; --i) {
-        countFloatArray_[i] = countFloatArray_[i-1];
+        countFloatArray_.at(i) = countFloatArray_.at(i-1);
     }
 
     // ある種類数が増える確率に、ある種類増えたあとの回数期待値を掛ける
     for(CardNumber i=1; i<=cardsPerDraw_; ++i) {
-        totalExpectedCount += probabilityFloatArray_[i] * countFloatArray_[i] / probabilityToForward;
+        totalExpectedCount += probabilityFloatArray_.at(i) * countFloatArray_.at(i) / probabilityToForward;
     }
 
     // 回数の期待値をずらしてあるので先頭に入れる
-    countFloatArray_[0] = totalExpectedCount;
+    countFloatArray_.at(0) = totalExpectedCount;
     return;
 }
 
+// x[C]0, x[C]1, ... を一度に求めたほうが速い
+// https://gist.github.com/keitaoouchi/2381408
+// にある、大内慶太氏のScala実装からアイデアを頂きました。
 template <typename FloatType>
-FloatType TypedCardProbabilityCaluculator<FloatType>::getCombinationSize(
-    CardNumber setSize, CardNumber subSetSize) {
-    // x[C]y = 0 for y when y < 0 or y > x , 0[C]y = 0 for any y
-    if ((subSetSize > setSize) || (setSize == 0)) {
-        return 0;
+void TypedCardProbabilityCalculator<FloatType>::getCombinationSizeSet(
+    CardNumber setSize, CardNumber maxSubSetSize, CombinationSizeSet& comboSizeSet) {
+
+    comboSizeSet.assign(maxSubSetSize+1, 0);
+
+    for(CardNumber i=0; i<=maxSubSetSize; ++i) {
+        // x[C]y = 0 for y when y < 0 or y > x , 0[C]y = 0 for any y
+        if ((i > setSize) || (setSize == 0)) {
+            comboSizeSet.at(i) = 0;
+            continue;
+        }
+
+        // x[C]0 = 1, x[C]x = 1
+        if ((i == 0) || (i == setSize)) {
+            comboSizeSet.at(i) = 1;
+            continue;
+        }
+
+        // x[C]1 = x, x[C]x-1 = x
+        if ((i == 1) || ((i + 1) == setSize)) {
+            comboSizeSet.at(i) = setSize;
+            continue;
+        }
+
+        // x[C]i = x[C](i-1) * (x+1-i) / i
+        comboSizeSet.at(i) = comboSizeSet.at(i-1);
+        comboSizeSet.at(i) *= (setSize + 1 - i);
+        comboSizeSet.at(i) /= i;
     }
 
-    // x[C]0 = 1, x[C]x = 1
-    if ((subSetSize == 0) || (subSetSize == setSize)) {
-        return 1;
-    }
-
-    // x[C]0 = 1, x[C]x = 1
-    if ((subSetSize == 1) || ((subSetSize + 1) == setSize)) {
-        return setSize;
-    }
-
-    // x[C]y = x[C]x-y を用いて演算を簡単にする
-    const CardNumber minSubSetSize = ((setSize - subSetSize) < subSetSize) ?
-        (setSize - subSetSize) : subSetSize;
-
-    // 誤差を生まないために全部掛けてから割る
-    FloatType combination = setSize + 1 - minSubSetSize;
-
-    // 1で割る必要はない
-    for(CardNumber i=2; i<=minSubSetSize; ++i) {
-        combination *= setSize + i - minSubSetSize;
-    }
-    for(CardNumber i=2; i<=minSubSetSize; ++i) {
-        combination /= i;
-    }
-
-    return combination;
+    return;
 }
 
 namespace {
@@ -513,14 +512,14 @@ int CardUnitTest::testCardHolder(void) {
     assert(cardHolder.drawCount_ == 0);
     assert(cardHolder.numberOfCollectedCards_ == 0);
     assert(cardHolder.hasCardArray_.size() == kindOfCards);
-    assert(cardHolder.hasCardArray_[0] == false);
-    assert(cardHolder.hasCardArray_[kindOfCards - 1] == false);
+    assert(cardHolder.hasCardArray_.at(0) == false);
+    assert(cardHolder.hasCardArray_.at(kindOfCards - 1) == false);
 
     // 本当のテストは再現可能な乱数生成モックに置き換える
     cardHolder.Draw(1);
     int count = 0;
     for(CardNumber i=0; i<kindOfCards; ++i) {
-        if (cardHolder.hasCardArray_[i] == true) {
+        if (cardHolder.hasCardArray_.at(i) == true) {
             ++count;
         }
     }
@@ -549,7 +548,7 @@ int CardUnitTest::testCardHolderFecth(void) {
         cardHolder.fetchCardSet(kindOfCards, cardArray);
 
         CardNumber totalNumber = 0;
-        std::map<CardNumber, bool> hasDrawnMap;
+        std::unordered_map<CardNumber, bool> hasDrawnMap;
         for(auto cardNumber : cardArray) {
             assert(cardNumber < kindOfCards);
             assert(hasDrawnMap[cardNumber] == false);
@@ -576,7 +575,7 @@ int CombinationUnitTest::Run(void) {
 
 int CombinationUnitTest::testCalculator(void) {
     for(CardNumber kindOfCards = 2; kindOfCards < 10; ++kindOfCards) {
-        CPCaluculatorMultiPrecision calc(kindOfCards, 1);
+        CPCalculatorMultiPrecision calc(kindOfCards, 1);
         auto actual = calc.Calculate(0);
         decltype(actual) expected = 0;
         for(CardNumber i = 1; i <= kindOfCards; ++i) {
@@ -590,30 +589,29 @@ int CombinationUnitTest::testCalculator(void) {
 }
 
 int CombinationUnitTest::testCalculatorGetCombinationSize(void) {
-    CPCaluculatorMultiPrecision calc(100, 1);
+    CPCalculatorMultiPrecision calc(100, 1);
 
 //  constexpr CardNumber MaxSetSize = 11;  // uint32の範囲ではこれより大きいとオーバーフローする
     constexpr CardNumber MaxSetSize = 50;  // MultiPrecisionIntとMultiPrecisionFloatの限界
+
     for(CardNumber setSize = 0; setSize <= MaxSetSize; ++setSize) {
-        for(CardNumber subSetSize = 0; subSetSize <= (setSize + 2); ++subSetSize) {
-            MultiPrecisionInt expected = 1;
+        const CardNumber upperSubSetSize = setSize + 2;
+        decltype(calc)::CombinationSizeSet actualComboSet;
+        calc.getCombinationSizeSet(setSize, upperSubSetSize, actualComboSet);
+
+        MultiPrecisionInt expected;
+        for(CardNumber subSetSize = 0; subSetSize <= upperSubSetSize; ++subSetSize) {
             if ((subSetSize > setSize) || (setSize == 0)) {
                 expected = 0;
             } else if ((subSetSize == 0) || (subSetSize == setSize)) {
                 expected = 1;
             } else {
-                CardNumber count = setSize - subSetSize;
-                for(CardNumber i = 1; i <= count; ++i) {
-                    expected *= (setSize + i - count);
-                }
-                for(CardNumber i = 1; i <= count; ++i) {
-                    expected /= i;
-                }
+                expected *= (setSize + 1 - subSetSize);
+                expected /= subSetSize;
             }
 
             MultiPrecisionInt actual {MultiPrecisionFloat(
-                    boost::multiprecision::floor(
-                        calc.getCombinationSize(setSize, subSetSize))).str()};
+                    boost::multiprecision::floor(actualComboSet.at(subSetSize))).str()};
             assert(expected == actual);
         }
     }

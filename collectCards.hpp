@@ -1,3 +1,6 @@
+#ifndef COLLECT_CARDS_HPP
+#define COLLECT_CARDS_HPP
+
 #include <iostream>
 #include <random>
 #include <vector>
@@ -24,11 +27,11 @@ static_assert(sizeof(TrialCount) <= sizeof(DrawCount), "Unexpected count type");
 
 // 途中計算の優先精度浮動小数点の最低桁数(10進数)
 using SizeOfDigits = unsigned int;
-constexpr SizeOfDigits g_digitsOfFloat = 20;
+constexpr SizeOfDigits g_digitsOfFloat = 20;  // 精度を上げたければ増やす
 
-// 途中計算の優先精度浮動小数点の最低桁数(2進数)
+// 途中計算の優先精度浮動小数点の最低桁数(2進数) : 未使用
 // 10進数の桁数 * { log_2(10) = ln(10)/ln(2) = 3.32193} 桁
-constexpr SizeOfDigits GetBitsOfGmpFloat(void) {
+constexpr SizeOfDigits GetBitsOfFloat(void) {
     return static_cast<SizeOfDigits>(
         static_cast<double>(g_digitsOfFloat) * 3.32193 + 1.0);
 }
@@ -81,20 +84,21 @@ protected:
 
 // 浮動小数の型を指定した組み合わせ計算
 template <typename FloatType>
-class TypedCardProbabilityCaluculator : public CardProbabilityCalculator {
+class TypedCardProbabilityCalculator : public CardProbabilityCalculator {
     // ユニットテスト
     friend class CardUnitTest;
     friend class CombinationUnitTest;
 public:
-    TypedCardProbabilityCaluculator(CardNumber kindOfCards, CardNumber cardsPerDraw);
-    virtual ~TypedCardProbabilityCaluculator(void);
+    using CombinationSizeSet = std::vector<FloatType>;
+    TypedCardProbabilityCalculator(CardNumber kindOfCards, CardNumber cardsPerDraw);
+    virtual ~TypedCardProbabilityCalculator(void);
     virtual const char* GetName(void) const;
 private:
     static const char* name_;  // モード名
     virtual ReportedCount calculate(void);
     virtual void setProbabilityArray(CardNumber numberOfWantedCards);
     virtual void updateCount(CardNumber numberOfWantedCards);
-    virtual FloatType getCombinationSize(CardNumber setSize, CardNumber subSetSize);
+    virtual void getCombinationSizeSet(CardNumber setSize, CardNumber maxSubSetSize, CombinationSizeSet& comboSizeSet);
     std::vector<FloatType> countFloatArray_;        // カードの残り種類数について回数の期待値
     std::vector<FloatType> probabilityFloatArray_;  // カードのセットについて遷移確率
     std::vector<FloatType> combinationFloatArray_;  // カードのセットについて遷移組み合わせ数
@@ -121,6 +125,8 @@ private:
     virtual int testCalculator(void);
     virtual int testCalculatorGetCombinationSize(void);
 };
+
+#endif // COLLECT_CARDS_HPP
 
 /*
 Local Variables:
